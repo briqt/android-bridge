@@ -11,10 +11,10 @@ Operate a connected Android device through the `android-bridge` CLI. Every inter
 
 ### Installation
 
-If `android-bridge` is not available, ask the user to install it:
+If `android-bridge` is not available, install it:
 
 ```bash
-pip install git+https://github.com/briqt/android-bridge.git
+pipx install git+https://github.com/briqt/android-bridge.git
 ```
 
 ### Device Connection

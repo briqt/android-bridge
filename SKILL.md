@@ -1,5 +1,5 @@
 ---
-name: android
+name: android-bridge
 description: Control a connected Android phone via ADB — tap, swipe, type, read screen, take screenshots, run shell commands. Use this skill whenever the user wants to interact with their Android device, automate phone tasks, read what's on the phone screen, check phone status, open apps, navigate UI, or perform any mobile device operation. Also use when the user mentions "手机", "phone", "device", "screen", or references android-bridge commands.
 ---
 

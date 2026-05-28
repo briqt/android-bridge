@@ -9,6 +9,16 @@ Operate a connected Android device through the `android-bridge` CLI. Every inter
 
 ## Prerequisites
 
+### Installation
+
+If `android-bridge` is not available, ask the user to install it:
+
+```bash
+pip install git+https://github.com/briqt/android-bridge.git
+```
+
+### Device Connection
+
 Before first use, ensure the device is connected:
 
 1. Run `android-bridge devices` to check for connected devices

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "active": {
+      "type": "string",
+      "description": "Default profile name to use when no --profile or SKILL_PROFILE is set"
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "serial": {
+            "type": "string",
+            "description": "Device serial or IP:port for WiFi ADB (e.g. 192.168.1.100:5555)"
+          }
+        },
+        "required": ["serial"]
+      },
+      "description": "Named device profiles"
+    }
+  }
+}

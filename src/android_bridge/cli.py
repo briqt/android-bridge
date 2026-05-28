@@ -1,6 +1,7 @@
 """CLI entry point for android-bridge."""
 
 import json
+import os
 import sys
 
 import click
@@ -10,9 +11,13 @@ from android_bridge import perception, actions
 
 
 @click.group()
-def main():
+@click.option("--profile", "-p", default=None, help="Device profile to use")
+@click.pass_context
+def main(ctx, profile):
     """AI-facing interface for Android device automation."""
-    pass
+    ctx.ensure_object(dict)
+    if profile:
+        dev.set_profile_override(profile)
 
 
 @main.command()

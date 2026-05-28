@@ -1,0 +1,161 @@
+"""CLI entry point for android-bridge."""
+
+import json
+import sys
+
+import click
+
+from android_bridge import device as dev
+from android_bridge import perception, actions
+
+
+@click.group()
+def main():
+    """AI-facing interface for Android device automation."""
+    pass
+
+
+@main.command()
+def devices():
+    """List connected ADB devices."""
+    devs = dev.list_devices()
+    if not devs:
+        click.echo("No devices found.")
+        sys.exit(1)
+    for serial, state in devs:
+        click.echo(f"{serial}\t{state}")
+
+
+@main.command()
+@click.argument("serial", required=False)
+def connect(serial):
+    """Connect to a device (auto-detect if no serial given)."""
+    try:
+        result = dev.connect(serial)
+        click.echo(f"Connected: {result}")
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.option("--vision", is_flag=True, help="Include screenshot")
+@click.option("--json-out", "as_json", is_flag=True, help="Output as JSON")
+@click.option("--save", type=click.Path(), help="Save screenshot to file")
+def snapshot(vision, as_json, save):
+    """Capture UI state (text + interactive elements)."""
+    try:
+        snap = perception.take_snapshot(vision=vision)
+        if as_json:
+            click.echo(json.dumps(snap.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            click.echo(snap.to_text())
+        if vision and snap.screenshot and save:
+            snap.screenshot.save(save)
+            click.echo(f"\nScreenshot saved: {save}", err=True)
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.option("--out", type=click.Path(), help="Save to file instead of base64 output")
+def screenshot(out):
+    """Take a screenshot."""
+    try:
+        img = perception.take_screenshot()
+        if out:
+            img.save(out)
+            click.echo(f"Saved: {out}")
+        else:
+            click.echo(perception.screenshot_to_base64(img))
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("x", type=int)
+@click.argument("y", type=int)
+def tap(x, y):
+    """Tap a point on screen."""
+    try:
+        click.echo(actions.tap(x, y))
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command("long-tap")
+@click.argument("x", type=int)
+@click.argument("y", type=int)
+def long_tap_cmd(x, y):
+    """Long-tap a point."""
+    try:
+        click.echo(actions.long_tap(x, y))
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("x1", type=int)
+@click.argument("y1", type=int)
+@click.argument("x2", type=int)
+@click.argument("y2", type=int)
+def swipe(x1, y1, x2, y2):
+    """Swipe from (x1,y1) to (x2,y2)."""
+    try:
+        click.echo(actions.swipe(x1, y1, x2, y2))
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command("type")
+@click.argument("text")
+def type_cmd(text):
+    """Type text (ASCII only; use shell for CJK via ADBKeyBoard)."""
+    try:
+        click.echo(actions.type_text(text))
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("button")
+def press(button):
+    """Press a device button (back, home, enter, power, volume_up, volume_down)."""
+    try:
+        click.echo(actions.press(button))
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("x1", type=int)
+@click.argument("y1", type=int)
+@click.argument("x2", type=int)
+@click.argument("y2", type=int)
+def drag(x1, y1, x2, y2):
+    """Drag from (x1,y1) to (x2,y2)."""
+    try:
+        click.echo(actions.drag(x1, y1, x2, y2))
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("cmd")
+@click.option("--root", is_flag=True, help="Execute as root (su -c)")
+def shell(cmd, root):
+    """Execute a shell command on the device."""
+    try:
+        result = actions.shell(cmd, root=root)
+        click.echo(result)
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)

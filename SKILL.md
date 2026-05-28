@@ -9,13 +9,19 @@ Operate a connected Android device through the `android-bridge` CLI. Every inter
 
 ## Prerequisites
 
+Before first use, ensure the device is connected:
+
+1. Run `android-bridge devices` to check for connected devices
+2. If no device is listed, ask the user for their device IP (WiFi ADB) or serial (USB), then run `android-bridge connect <ip_or_serial>`
+3. Once connected, the device is remembered — no need to reconnect in future sessions
+
 The device must be awake for UI operations. If `snapshot` fails with "null root node", wake it first:
 
 ```bash
 android-bridge shell --root "input keyevent KEYCODE_POWER"
 ```
 
-If `ADB` is not on PATH, set the environment variable before any command:
+If `ADB` is not on PATH, ask the user for the path and set it:
 ```bash
 export ADB=/path/to/adb
 ```

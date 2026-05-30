@@ -1,8 +1,11 @@
 {
   "active": "",
+  "adb_path": "",
+  "adb_host": "",
+  "adb_port": 5037,
   "profiles": {
-    "mi11": {
-      "serial": "192.168.137.96:5555"
+    "example": {
+      "serial": ""
     }
   }
 }

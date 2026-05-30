@@ -6,6 +6,18 @@
       "type": "string",
       "description": "Default profile name to use when no --profile or SKILL_PROFILE is set"
     },
+    "adb_path": {
+      "type": "string",
+      "description": "Path to adb binary (default: 'adb', resolved from PATH)"
+    },
+    "adb_host": {
+      "type": "string",
+      "description": "ADB server host (default: not set, uses local adb server). Useful for WSL connecting to Windows ADB server via 127.0.0.1"
+    },
+    "adb_port": {
+      "type": "integer",
+      "description": "ADB server port (default: 5037)"
+    },
     "profiles": {
       "type": "object",
       "additionalProperties": {

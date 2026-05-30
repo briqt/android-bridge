@@ -1,8 +1,15 @@
+# Ignore all dotfiles/dotdirs
+.*
+
+# Whitelist
+!.gitignore
+
+# Python
 __pycache__/
 *.egg-info/
-.venv/
+*.pyc
 dist/
 build/
-*.pyc
-.agents/
-.claude/
+
+# Virtual env
+.venv/

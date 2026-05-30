@@ -11,7 +11,7 @@ import tempfile
 
 from PIL import Image
 
-from android_bridge.device import adb_shell, adb, get_serial, _adb_cmd
+from android_bridge.device import adb_shell, adb, get_serial, _adb_base
 
 BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 
@@ -133,6 +133,7 @@ def parse_hierarchy(xml_str: str) -> Snapshot:
 def take_snapshot(vision: bool = False) -> Snapshot:
     adb_shell("uiautomator dump /sdcard/window_dump.xml")
     xml_str = adb_shell("cat /sdcard/window_dump.xml")
+    adb_shell("rm -f /sdcard/window_dump.xml")
     snapshot = parse_hierarchy(xml_str)
     if vision:
         snapshot.screenshot = take_screenshot()
@@ -141,20 +142,29 @@ def take_snapshot(vision: bool = False) -> Snapshot:
 
 def take_screenshot() -> Image.Image:
     serial = get_serial()
-    adb_bin = _adb_cmd()
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
-        tmp_path = f.name
-    subprocess.run(
-        [adb_bin, "-s", serial, "shell", "screencap", "-p", "/sdcard/screen.png"],
-        capture_output=True, timeout=10
-    )
-    subprocess.run(
-        [adb_bin, "-s", serial, "pull", "/sdcard/screen.png", tmp_path],
-        capture_output=True, timeout=10
-    )
-    img = Image.open(tmp_path)
-    Path(tmp_path).unlink(missing_ok=True)
-    return img
+    cmd_base = _adb_base() + ["-s", serial]
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            tmp_path = f.name
+        subprocess.run(
+            cmd_base + ["shell", "screencap", "-p", "/sdcard/screen.png"],
+            capture_output=True, timeout=10
+        )
+        subprocess.run(
+            cmd_base + ["pull", "/sdcard/screen.png", tmp_path],
+            capture_output=True, timeout=10
+        )
+        subprocess.run(
+            cmd_base + ["shell", "rm", "-f", "/sdcard/screen.png"],
+            capture_output=True, timeout=5
+        )
+        img = Image.open(tmp_path)
+        img.load()  # Force read before deleting temp file
+        return img
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
 
 
 def screenshot_to_base64(img: Image.Image) -> str:

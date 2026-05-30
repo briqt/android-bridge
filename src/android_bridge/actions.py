@@ -1,5 +1,7 @@
 """Action layer: device operations via pure ADB commands."""
 
+import shlex
+
 from android_bridge.device import adb_shell
 
 
@@ -19,7 +21,8 @@ def swipe(x1: int, y1: int, x2: int, y2: int, duration: int = 300) -> str:
 
 
 def type_text(text: str) -> str:
-    adb_shell(f"input text '{text}'", root=True)
+    # Escape for shell; 'input text' expects shell-safe string
+    adb_shell(f"input text {shlex.quote(text)}", root=True)
     return f"Typed: '{text}'"
 
 

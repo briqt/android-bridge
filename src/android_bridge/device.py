@@ -3,6 +3,8 @@
 from pathlib import Path
 import json
 import os
+import shlex
+import shutil
 import sys
 import subprocess
 
@@ -18,7 +20,36 @@ def set_profile_override(profile: str) -> None:
 
 
 def _adb_cmd() -> str:
-    return os.environ.get("ADB", "adb")
+    config = _load_full_config()
+    adb = config.get("adb_path", "adb")
+    if not shutil.which(adb):
+        search_paths = os.environ.get("PATH", "").split(os.pathsep)
+        raise RuntimeError(
+            f"ADB not found.\n"
+            f"  Searched: {adb!r} in PATH entries:\n"
+            + "".join(f"    - {p}\n" for p in search_paths[:10])
+            + f"  Fix: edit {CONFIG_FILE} and set \"adb_path\": \"/path/to/adb\"\n"
+            f"  Or:  sudo apt install adb"
+        )
+    return adb
+
+
+def _adb_server_args() -> list[str]:
+    """Return -H/-P args if adb_host/adb_port are configured."""
+    config = _load_full_config()
+    args = []
+    host = config.get("adb_host")
+    port = config.get("adb_port")
+    if host:
+        args.extend(["-H", str(host)])
+    if port:
+        args.extend(["-P", str(port)])
+    return args
+
+
+def _adb_base() -> list[str]:
+    """Return base adb command with server args: ['adb', '-H', host, '-P', port]."""
+    return [_adb_cmd()] + _adb_server_args()
 
 
 def _resolve_profile() -> str | None:
@@ -87,23 +118,23 @@ def _save_config(serial: str, profile: str | None = None) -> None:
     CONFIG_FILE.write_text(json.dumps(config, indent=2) + "\n")
 
 
-def adb(args: str, timeout: int = 30) -> subprocess.CompletedProcess:
+def adb(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
+    """Run an adb command. args should be a list of arguments (not a string)."""
     serial = _load_config()
-    cmd_parts = [_adb_cmd()]
+    cmd_parts = _adb_base()
     if serial:
         cmd_parts.extend(["-s", serial])
-    cmd_parts.extend(args.split())
+    cmd_parts.extend(args)
     return subprocess.run(cmd_parts, capture_output=True, text=True, timeout=timeout)
 
 
 def adb_shell(cmd: str, root: bool = False, timeout: int = 30) -> str:
     serial = _load_config()
-    adb_bin = _adb_cmd()
-    cmd_parts = [adb_bin]
+    cmd_parts = _adb_base()
     if serial:
         cmd_parts.extend(["-s", serial])
     if root:
-        cmd_parts.extend(["shell", f"su -c '{cmd}'"])
+        cmd_parts.extend(["shell", f"su -c {shlex.quote(cmd)}"])
     else:
         cmd_parts.extend(["shell", cmd])
     result = subprocess.run(cmd_parts, capture_output=True, text=True, timeout=timeout)
@@ -115,9 +146,8 @@ def adb_shell(cmd: str, root: bool = False, timeout: int = 30) -> str:
 
 
 def list_devices() -> list[tuple[str, str]]:
-    result = subprocess.run(
-        [_adb_cmd(), "devices"], capture_output=True, text=True, timeout=10
-    )
+    cmd_parts = _adb_base() + ["devices"]
+    result = subprocess.run(cmd_parts, capture_output=True, text=True, timeout=10)
     devices = []
     for line in result.stdout.strip().splitlines()[1:]:
         parts = line.split("\t")
@@ -133,9 +163,8 @@ def _normalize_serial(serial: str) -> str:
 
 
 def _adb_connect(serial: str) -> None:
-    result = subprocess.run(
-        [_adb_cmd(), "connect", serial], capture_output=True, text=True, timeout=15
-    )
+    cmd_parts = _adb_base() + ["connect", serial]
+    result = subprocess.run(cmd_parts, capture_output=True, text=True, timeout=15)
     output = (result.stdout + result.stderr).strip().lower()
     if "connected" not in output and "already" not in output:
         raise RuntimeError(f"Failed to connect: {result.stdout.strip()}")
@@ -156,11 +185,8 @@ def connect(serial: str | None = None) -> str:
         if ":" in serial:
             _adb_connect(serial)
 
-    adb_bin = _adb_cmd()
-    result = subprocess.run(
-        [adb_bin, "-s", serial, "shell", "getprop", "ro.product.model"],
-        capture_output=True, text=True, timeout=10
-    )
+    cmd_parts = _adb_base() + ["-s", serial, "shell", "getprop", "ro.product.model"]
+    result = subprocess.run(cmd_parts, capture_output=True, text=True, timeout=10)
     model = result.stdout.strip() or "unknown"
     _save_config(serial, profile)
     return f"{model} ({serial})"
@@ -175,4 +201,3 @@ def get_serial() -> str:
     if not online:
         raise RuntimeError("No device connected. Run: android-bridge connect <serial>")
     return online[0]
-

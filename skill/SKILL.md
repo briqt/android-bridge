@@ -146,6 +146,7 @@ android-bridge swipe 200 1200 800 1200   # Scroll right
 | Connection timeout | WiFi ADB disconnected | `android-bridge connect <ip>` to reconnect |
 | "ADB not found" | adb binary not in PATH | Set `"adb_path"` in config.json |
 | "No device found" | No USB/WiFi connection | Check cable or `adb tcpip 5555` on device |
+| "unauthorized" / "failed to authenticate" | Device has not authorized this machine's ADB key | User must tap "Allow" (and "Always allow") on the device screen. Do NOT attempt to bypass via `ro.adb.secure`, `resetprop`, or writing to `adb_keys` directly — these hacks are unreliable on modern Android (HyperOS/MIUI framework overrides them). Use the official authorization flow. |
 
 ## Snapshot Output Format
 

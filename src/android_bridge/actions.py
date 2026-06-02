@@ -52,3 +52,21 @@ def drag(x1: int, y1: int, x2: int, y2: int, duration: int = 500) -> str:
 
 def shell(cmd: str, root: bool = False) -> str:
     return adb_shell(cmd, root=root)
+
+
+def push(local: str, remote: str) -> str:
+    from android_bridge.device import adb
+    result = adb(["push", local, remote], timeout=120)
+    output = (result.stdout + result.stderr).strip()
+    if result.returncode != 0:
+        raise RuntimeError(output or f"adb push failed (exit {result.returncode})")
+    return output
+
+
+def pull(remote: str, local: str) -> str:
+    from android_bridge.device import adb
+    result = adb(["pull", remote, local], timeout=120)
+    output = (result.stdout + result.stderr).strip()
+    if result.returncode != 0:
+        raise RuntimeError(output or f"adb pull failed (exit {result.returncode})")
+    return output

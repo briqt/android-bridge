@@ -112,6 +112,12 @@ android-bridge shell "<cmd>"              # Normal shell
 android-bridge shell --root "<cmd>"       # Root shell (su -c)
 ```
 
+### File Transfer
+```bash
+android-bridge push <local> <remote>      # Push file/dir to device
+android-bridge pull <remote> [local]      # Pull from device (default: cwd)
+```
+
 ### Device
 ```bash
 android-bridge devices                    # List devices

@@ -164,3 +164,29 @@ def shell(cmd, root):
     except Exception as e:
         click.echo(f"ERROR: {e}", err=True)
         sys.exit(1)
+
+
+@main.command()
+@click.argument("local", type=click.Path(exists=True))
+@click.argument("remote")
+def push(local, remote):
+    """Push a local file/directory to the device."""
+    try:
+        result = actions.push(local, remote)
+        click.echo(result)
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("remote")
+@click.argument("local", type=click.Path(), default=".")
+def pull(remote, local):
+    """Pull a file/directory from the device to local."""
+    try:
+        result = actions.pull(remote, local)
+        click.echo(result)
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)

@@ -154,12 +154,36 @@ def drag(x1, y1, x2, y2):
 
 
 @main.command()
-@click.argument("cmd")
+@click.argument("cmd", required=False)
 @click.option("--root", is_flag=True, help="Execute as root (su -c)")
-def shell(cmd, root):
-    """Execute a shell command on the device."""
+@click.option("--script", "script_file", type=click.Path(exists=True), default=None,
+              help="Execute a local script file on the device")
+def shell(cmd, root, script_file):
+    """Execute a shell command on the device.
+
+    Three modes:
+
+    \b
+      1. Inline:  android-bridge shell [--root] "command"
+      2. Script:  android-bridge shell [--root] --script path/to/file.sh
+      3. Stdin:   echo "cmd" | android-bridge shell [--root]
+    """
     try:
-        result = actions.shell(cmd, root=root)
+        if script_file:
+            from pathlib import Path
+            content = Path(script_file).read_text()
+            result = actions.shell_script(content, root=root)
+        elif cmd:
+            result = actions.shell(cmd, root=root)
+        elif not sys.stdin.isatty():
+            content = sys.stdin.read()
+            if not content.strip():
+                click.echo("ERROR: empty stdin", err=True)
+                sys.exit(1)
+            result = actions.shell_script(content, root=root)
+        else:
+            click.echo("ERROR: provide a command, --script file, or pipe via stdin", err=True)
+            sys.exit(1)
         click.echo(result)
     except Exception as e:
         click.echo(f"ERROR: {e}", err=True)

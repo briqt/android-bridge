@@ -139,9 +139,37 @@ def adb_shell(cmd: str, root: bool = False, timeout: int = 30) -> str:
         cmd_parts.extend(["shell", cmd])
     result = subprocess.run(cmd_parts, capture_output=True, text=True, timeout=timeout)
     output = result.stdout.strip()
-    if result.returncode != 0:
+    if result.returncode != 0 and not output:
         err = result.stderr.strip()
         raise RuntimeError(err or output or f"adb shell failed (exit {result.returncode})")
+    return output
+
+
+def adb_shell_script(script: str, root: bool = False, timeout: int = 30) -> str:
+    """Execute a multi-line script on device via stdin pipe.
+
+    Bypasses all local shell quoting issues by piping the script directly
+    to adb shell's stdin. The script runs in a fresh sh on the device.
+    """
+    serial = _load_config()
+    cmd_parts = _adb_base()
+    if serial:
+        cmd_parts.extend(["-s", serial])
+    if root:
+        cmd_parts.extend(["shell", "su"])
+    else:
+        cmd_parts.extend(["shell"])
+    result = subprocess.run(
+        cmd_parts,
+        input=script,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    output = result.stdout.strip()
+    if result.returncode != 0 and not output:
+        err = result.stderr.strip()
+        raise RuntimeError(err or f"adb shell failed (exit {result.returncode})")
     return output
 
 

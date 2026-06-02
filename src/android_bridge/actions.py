@@ -54,6 +54,11 @@ def shell(cmd: str, root: bool = False) -> str:
     return adb_shell(cmd, root=root)
 
 
+def shell_script(script: str, root: bool = False) -> str:
+    from android_bridge.device import adb_shell_script
+    return adb_shell_script(script, root=root)
+
+
 def push(local: str, remote: str) -> str:
     from android_bridge.device import adb
     result = adb(["push", local, remote], timeout=120)

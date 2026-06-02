@@ -110,6 +110,16 @@ android-bridge drag <x1> <y1> <x2> <y2>  # Drag and drop
 ```bash
 android-bridge shell "<cmd>"              # Normal shell
 android-bridge shell --root "<cmd>"       # Root shell (su -c)
+android-bridge shell --root --script f.sh # Execute local script file on device
+echo "cmd" | android-bridge shell --root  # Stdin pipe (bypasses all quoting issues)
+```
+
+For complex commands with `$()`, nested quotes, or pipes, prefer stdin mode:
+```bash
+cat <<'EOF' | android-bridge -p mi11 shell --root
+echo "cap=$(cat /sys/class/power_supply/battery/capacity)%"
+ps -A | grep my-daemon | grep -v grep
+EOF
 ```
 
 ### File Transfer

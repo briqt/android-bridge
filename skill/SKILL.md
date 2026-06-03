@@ -178,3 +178,27 @@ android-bridge swipe 200 1200 800 1200   # Scroll right
 ```
 
 Each element shows: `[index] name (center_x, center_y) [capabilities]`. Use the center coordinates directly with `tap`.
+
+## Pitfalls
+
+### Clearing EditText content
+
+`ADB_CLEAR_TEXT` broadcast and `input keycombination 113 29` (Ctrl+A) are unreliable — they fail silently in many apps or when ADBKeyBoard is active. The only robust method:
+
+```bash
+# Move cursor to end, then delete all characters one by one
+android-bridge shell --root "input keyevent KEYCODE_MOVE_END"
+for i in $(seq 1 30); do
+  android-bridge shell --root "input keyevent 67"   # KEYCODE_DEL
+done
+```
+
+Verify the field is empty (snapshot shows class name like 'EditText' instead of text content) before typing new text.
+
+### Toast / Snackbar detection
+
+Transient UI elements (toast messages, snackbar) are NOT captured by `snapshot` (accessibility tree). After any save/submit action, use `screenshot` + vision analysis to check for success/failure feedback.
+
+### Avoid batch keyevent spam
+
+Do NOT send a batch of unrelated keycodes (e.g., `input keyevent 28 29 30 ...`) hoping one will work — this can trigger unintended app launches or navigation. Send only the specific keyevent you need.

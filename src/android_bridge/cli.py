@@ -120,9 +120,56 @@ def swipe(x1, y1, x2, y2):
 @main.command("type")
 @click.argument("text")
 def type_cmd(text):
-    """Type text (ASCII only; use shell for CJK via ADBKeyBoard)."""
+    """Type text (ASCII only; use type-cjk for CJK/unicode)."""
     try:
         click.echo(actions.type_text(text))
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command("type-cjk")
+@click.argument("text")
+@click.option("--at", nargs=2, type=int, default=None, help="Tap coordinates (x y) to focus field first")
+def type_cjk_cmd(text, at):
+    """Type CJK/unicode text via ADBKeyBoard.
+
+    Automatically handles IME switching and InputConnection establishment.
+    Use --at x y to tap the input field before typing.
+    """
+    try:
+        tap_x, tap_y = at if at else (None, None)
+        click.echo(actions.type_cjk(text, tap_x, tap_y))
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command("clear-field")
+@click.option("--at", nargs=2, type=int, default=None, help="Tap coordinates (x y) to focus field first")
+def clear_field_cmd(at):
+    """Clear the focused input field via ADBKeyBoard.
+
+    Requires ADBKeyBoard installed. Use --at x y to tap the field first.
+    """
+    try:
+        tap_x, tap_y = at if at else (None, None)
+        click.echo(actions.clear_field(tap_x, tap_y))
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command("select-all")
+@click.option("--at", nargs=2, type=int, default=None, help="Tap coordinates (x y) to focus field first")
+def select_all_cmd(at):
+    """Select all text in the focused field via ADBKeyBoard Ctrl+A.
+
+    Use --at x y to tap the field first.
+    """
+    try:
+        tap_x, tap_y = at if at else (None, None)
+        click.echo(actions.select_all(tap_x, tap_y))
     except Exception as e:
         click.echo(f"ERROR: {e}", err=True)
         sys.exit(1)

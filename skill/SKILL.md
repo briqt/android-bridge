@@ -135,14 +135,33 @@ android-bridge connect <ip_or_serial>     # Connect and remember
 android-bridge connect                    # Auto-detect connected device
 ```
 
-## Chinese Text Input
+## Chinese/CJK Text Input
 
-`type` only handles ASCII. For CJK, use ADBKeyBoard (pre-installed):
+`type` only handles ASCII. For CJK/unicode, use the built-in `type-cjk` command:
 
 ```bash
-android-bridge shell --root "ime set com.android.adbkeyboard/.AdbIME"
-android-bridge shell "am broadcast -a ADB_INPUT_B64 --es msg '$(echo -n '中文内容' | base64)'"
-android-bridge shell --root "ime set com.sohu.inputmethod.sogou.xiaomi/.SogouIME"
+android-bridge type-cjk "中文内容"              # Type CJK (field must already have focus)
+android-bridge type-cjk "中文内容" --at 638 779 # Tap field first, then type
+```
+
+Related field operations:
+
+```bash
+android-bridge clear-field                      # Clear focused input field
+android-bridge clear-field --at 638 779         # Tap field first, then clear
+android-bridge select-all                       # Select all text in focused field
+android-bridge select-all --at 638 779          # Tap field first, then select all
+```
+
+These commands automatically handle ADBKeyBoard IME switching and InputConnection establishment. The `--at x y` option ensures proper focus by tapping the field, switching IME, then re-tapping to bind the InputConnection.
+
+For manual control (rare), the underlying ADBKeyBoard broadcasts:
+
+```bash
+android-bridge shell "am broadcast -a ADB_INPUT_B64 --es msg '$(echo -n '文本' | base64)'"
+android-bridge shell "am broadcast -a ADB_CLEAR_TEXT"
+android-bridge shell "am broadcast -a ADB_INPUT_TEXT --es mcode '4096,29'"  # Ctrl+A
+android-bridge shell "am broadcast -a ADB_INPUT_CODE --ei code 67"          # KEYCODE_DEL
 ```
 
 ## Scrolling
@@ -181,19 +200,21 @@ Each element shows: `[index] name (center_x, center_y) [capabilities]`. Use the 
 
 ## Pitfalls
 
-### Clearing EditText content
+### ADBKeyBoard requires InputConnection
 
-`ADB_CLEAR_TEXT` broadcast and `input keycombination 113 29` (Ctrl+A) are unreliable — they fail silently in many apps or when ADBKeyBoard is active. The only robust method:
+ADBKeyBoard broadcasts (`ADB_CLEAR_TEXT`, `ADB_INPUT_B64`, etc.) only work when ADBKeyBoard has an active InputConnection to the focused field. After switching IME with `ime set`, you MUST re-tap the input field to establish the connection. The `--at` option on `type-cjk`, `clear-field`, and `select-all` handles this automatically.
+
+If using manual broadcasts and they silently fail, the cause is almost always: IME was switched but InputConnection was not re-established (missing re-tap).
+
+Fallback for apps with non-standard InputConnection (very rare):
 
 ```bash
-# Move cursor to end, then delete all characters one by one
+# Move cursor to end, then delete characters one by one
 android-bridge shell --root "input keyevent KEYCODE_MOVE_END"
 for i in $(seq 1 30); do
   android-bridge shell --root "input keyevent 67"   # KEYCODE_DEL
 done
 ```
-
-Verify the field is empty (snapshot shows class name like 'EditText' instead of text content) before typing new text.
 
 ### Toast / Snackbar detection
 
@@ -202,3 +223,14 @@ Transient UI elements (toast messages, snackbar) are NOT captured by `snapshot` 
 ### Avoid batch keyevent spam
 
 Do NOT send a batch of unrelated keycodes (e.g., `input keyevent 28 29 30 ...`) hoping one will work — this can trigger unintended app launches or navigation. Send only the specific keyevent you need.
+
+### `input keycombination` vs ADBKeyBoard mcode
+
+`input keycombination` injects hardware-level KeyEvents via InputManagerService. It does NOT go through the IME channel. For text selection operations (Ctrl+A, Ctrl+C, etc.) on a focused EditText, prefer ADBKeyBoard's mcode broadcast — it goes through InputConnection and is more reliable:
+
+```bash
+# Prefer this (IME channel):
+android-bridge shell "am broadcast -a ADB_INPUT_TEXT --es mcode '4096,29'"
+# Over this (hardware injection — may not reach the editor):
+android-bridge shell --root "input keycombination 113 29"
+```

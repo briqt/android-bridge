@@ -172,9 +172,15 @@ screen: 1080x2400  nodes: 44  shown: 44
 
 Each node: `[index] label (cx,cy) [flags] bounds=[x1,y1][x2,y2] class=X rid=Y`.
 
+`[flags]` includes both **capabilities** (`click`, `long-click`, `checkable`, `scroll`) and **state** (`checked` = switch/checkbox on, `focused` = input has focus, `selected` = active tab/item, `disabled` = greyed out). State flags are how you read a Switch's on/off or which EditText is active without a screenshot:
+```
+  [3] 定时发布 (908,1505) [click,checkable,checked] bounds=[831,1454][985,1556] class=Switch
+  [4] — (540,1479) [click,focused] bounds=[0,599][1080,2359] class=EditText rid=body
+```
+
 - **Trigger rule**: if `snapshot` returns fewer than ~3 interactive elements, or a target appears as a label-less `ImageView`/`View`, switch to `dump`. Flutter/Compose/Canvas apps (e.g. `com.bytedance.writer_assistant_flutter`) — default to `dump`.
 - `dump --clickable` — only interactive nodes (tighter output when the tree is large).
-- `dump --json-out` — full fields including `content_desc` (untruncated) for programmatic use.
+- `dump --json-out` — full fields including `content_desc` (untruncated) and all state flags for programmatic use.
 - `dump --max N` — cap nodes shown (default 200; stderr warns on truncation).
 
 ## Text Input (ASCII & CJK)

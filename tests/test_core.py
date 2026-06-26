@@ -201,6 +201,83 @@ def test_dump_label_collapses_newlines():
     assert "line1" in line and "line2" in line
 
 
+# --- dump state attributes (checked/focused/selected/disabled) ---
+
+STATE_XML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<hierarchy rotation="0">
+  <node index="0" text="" resource-id="" class="android.widget.Switch"
+        content-desc="定时发布" clickable="true" scrollable="false" long-clickable="false"
+        checkable="true" checked="true" enabled="true" focusable="true" focused="false" selected="false"
+        bounds="[100,100][200,140]" />
+  <node index="1" text="" resource-id="" class="android.widget.Switch"
+        content-desc="定时发布off" clickable="true" scrollable="false" long-clickable="false"
+        checkable="true" checked="false" enabled="true" focusable="true" focused="false" selected="false"
+        bounds="[100,200][200,240]" />
+  <node index="2" text="" resource-id="com.app:id/body" class="android.widget.EditText"
+        content-desc="" clickable="true" scrollable="false" long-clickable="false"
+        checkable="false" checked="false" enabled="true" focusable="true" focused="true" selected="false"
+        bounds="[0,300][1080,500]" />
+  <node index="3" text="提交" resource-id="" class="android.widget.Button"
+        content-desc="" clickable="true" scrollable="false" long-clickable="false"
+        checkable="false" checked="false" enabled="false" focusable="true" focused="false" selected="false"
+        bounds="[100,600][200,680]" />
+  <node index="4" text="当前tab" resource-id="" class="android.widget.TextView"
+        content-desc="" clickable="true" scrollable="false" long-clickable="false"
+        checkable="false" checked="false" enabled="true" focusable="true" focused="false" selected="true"
+        bounds="[100,700][200,740]" />
+</hierarchy>"""
+
+
+def test_dump_checked_state_on():
+    r = perception.dump_hierarchy(STATE_XML)
+    sw = [n for n in r.nodes if n.label == "定时发布"][0]
+    assert sw.checkable is True
+    assert sw.checked is True
+    line = sw.to_line()
+    assert "checkable" in line
+    assert "checked" in line
+
+
+def test_dump_checked_state_off_disambiguates_from_checkable():
+    r = perception.dump_hierarchy(STATE_XML)
+    sw = [n for n in r.nodes if n.label == "定时发布off"][0]
+    assert sw.checkable is True
+    assert sw.checked is False
+    line = sw.to_line()
+    assert "checkable" in line
+    assert "checked" not in line  # off switch must not show [checked]
+
+
+def test_dump_focused_state_surfaces():
+    r = perception.dump_hierarchy(STATE_XML)
+    body = [n for n in r.nodes if n.resource_id == "body"][0]
+    assert body.focused is True
+    assert "focused" in body.to_line()
+
+
+def test_dump_disabled_state_surfaces():
+    r = perception.dump_hierarchy(STATE_XML)
+    btn = [n for n in r.nodes if n.label == "提交"][0]
+    assert btn.enabled is False
+    assert "disabled" in btn.to_line()
+
+
+def test_dump_selected_state_surfaces():
+    r = perception.dump_hierarchy(STATE_XML)
+    tab = [n for n in r.nodes if n.label == "当前tab"][0]
+    assert tab.selected is True
+    assert "selected" in tab.to_line()
+
+
+def test_dump_to_dict_includes_state_fields():
+    r = perception.dump_hierarchy(STATE_XML)
+    d = r.to_dict()
+    n = d["nodes"][0]
+    for key in ("checked", "focused", "selected", "enabled", "checkable"):
+        assert key in n
+
+
 # --- device config write-back (A6 regression: save must write to loaded source path) ---
 
 def test_save_config_writes_to_dev_override(tmp_path, monkeypatch):

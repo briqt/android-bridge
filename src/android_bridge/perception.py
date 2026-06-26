@@ -78,9 +78,9 @@ class Snapshot:
 class DumpNode:
     """A UI node with full attributes — no filtering of labeled-but-non-interactive nodes.
 
-    Unlike Element, DumpNode always carries bounds + content-desc + all flags,
-    so Flutter/Compose apps (which put text in content-desc and skip clickable flags)
-    remain visible and tappable.
+    Unlike Element, DumpNode always carries bounds + content-desc + all flags AND state
+    (checked/focused/selected/disabled), so Flutter/Compose apps (which put text in
+    content-desc and skip clickable flags) remain visible, tappable, and state-readable.
     """
     index: int
     label: str           # text or content-desc ("" if neither)
@@ -90,12 +90,16 @@ class DumpNode:
     resource_id: str
     bounds: tuple[int, int, int, int]  # x1, y1, x2, y2
     center: tuple[int, int]
+    # capabilities (what the node CAN do)
     clickable: bool
     long_clickable: bool
     checkable: bool
     scrollable: bool
+    # state (what the node IS right now) — the gap this class closes vs Element
     enabled: bool
     selected: bool
+    checked: bool        # Switch/Checkbox/RadioButton on/off state
+    focused: bool        # which EditText/input currently has focus
 
     def to_line(self) -> str:
         cx, cy = self.center
@@ -105,9 +109,17 @@ class DumpNode:
         if self.long_clickable:
             flags.append("long-click")
         if self.checkable:
-            flags.append("check")
+            flags.append("checkable")
+        if self.checked:
+            flags.append("checked")
         if self.scrollable:
             flags.append("scroll")
+        if self.selected:
+            flags.append("selected")
+        if self.focused:
+            flags.append("focused")
+        if not self.enabled:
+            flags.append("disabled")
         flag_str = f" [{','.join(flags)}]" if flags else ""
         rid = f" rid={self.resource_id}" if self.resource_id else ""
         label = self.label if self.label else "—"
@@ -136,6 +148,8 @@ class DumpNode:
             "scrollable": self.scrollable,
             "enabled": self.enabled,
             "selected": self.selected,
+            "checked": self.checked,
+            "focused": self.focused,
         }
 
 
@@ -304,6 +318,8 @@ def dump_hierarchy(xml_str: str, mode: str = "default", max_nodes: int = 200) ->
             scrollable=n.get("scrollable") == "true",
             enabled=n.get("enabled") == "true",
             selected=n.get("selected") == "true",
+            checked=n.get("checked") == "true",
+            focused=n.get("focused") == "true",
         ))
 
     return DumpResult(screen=(max_w, max_h), nodes=nodes, truncated=truncated, total_nodes=total)

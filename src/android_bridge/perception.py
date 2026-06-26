@@ -100,6 +100,7 @@ class DumpNode:
     selected: bool
     checked: bool        # Switch/Checkbox/RadioButton on/off state
     focused: bool        # which EditText/input currently has focus
+    blocked: bool = False  # clickable=true node with a same-bounds clickable=false overlay (disabled button under a clickable wrapper — don't assume [click] means tappable)
 
     def to_line(self) -> str:
         cx, cy = self.center
@@ -120,6 +121,8 @@ class DumpNode:
             flags.append("focused")
         if not self.enabled:
             flags.append("disabled")
+        if self.blocked:
+            flags.append("blocked")
         flag_str = f" [{','.join(flags)}]" if flags else ""
         rid = f" rid={self.resource_id}" if self.resource_id else ""
         label = self.label if self.label else "—"
@@ -150,6 +153,7 @@ class DumpNode:
             "selected": self.selected,
             "checked": self.checked,
             "focused": self.focused,
+            "blocked": self.blocked,
         }
 
 
@@ -321,6 +325,20 @@ def dump_hierarchy(xml_str: str, mode: str = "default", max_nodes: int = 200) ->
             checked=n.get("checked") == "true",
             focused=n.get("focused") == "true",
         ))
+
+    # Detect clickable nodes that have a same-bounds clickable=false overlay — a disabled
+    # button often appears as a clickable=true wrapper with a clickable=false node at the
+    # exact same bounds (the disabled leaf). [click] alone misleads the agent into tapping;
+    # [blocked] warns that the actual control at this location is not tappable.
+    disabled_bounds = set()
+    for n in all_nodes:
+        if n.get("clickable") == "false":
+            b = _parse_bounds(n.get("bounds", ""))
+            if b:
+                disabled_bounds.add(b)
+    for node in nodes:
+        if node.clickable and node.bounds in disabled_bounds:
+            node.blocked = True
 
     return DumpResult(screen=(max_w, max_h), nodes=nodes, truncated=truncated, total_nodes=total)
 

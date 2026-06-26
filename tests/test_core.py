@@ -278,6 +278,37 @@ def test_dump_to_dict_includes_state_fields():
         assert key in n
 
 
+# --- dump blocked flag (disabled overlay on a clickable button) ---
+
+BLOCKED_XML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<hierarchy rotation="0">
+  <node index="0" text="" resource-id="" class="android.view.View"
+        content-desc="下一步" clickable="true" scrollable="false" long-clickable="false"
+        checkable="false" checked="false" enabled="true" focusable="true" focused="false" selected="false"
+        bounds="[912,146][1038,201]" />
+  <node index="1" text="" resource-id="" class="android.widget.Button"
+        content-desc="下一步" clickable="false" scrollable="false" long-clickable="false"
+        checkable="false" checked="false" enabled="true" focusable="true" focused="false" selected="false"
+        bounds="[912,146][1038,201]" />
+</hierarchy>"""
+
+
+def test_dump_blocked_flag_for_disabled_overlay():
+    r = perception.dump_hierarchy(BLOCKED_XML)
+    # clickable=true "下一步" has a same-bounds clickable=false overlay → blocked
+    next_btn = [n for n in r.nodes if n.label == "下一步" and n.clickable][0]
+    assert next_btn.blocked is True
+    assert "blocked" in next_btn.to_line()
+
+
+def test_dump_not_blocked_without_overlay():
+    r = perception.dump_hierarchy(DUMP_XML)  # no same-bounds disabled overlay
+    for n in r.nodes:
+        if n.clickable:
+            assert n.blocked is False
+
+
 # --- device config write-back (A6 regression: save must write to loaded source path) ---
 
 def test_save_config_writes_to_dev_override(tmp_path, monkeypatch):

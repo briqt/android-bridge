@@ -172,7 +172,9 @@ screen: 1080x2400  nodes: 44  shown: 44
 
 Each node: `[index] label (cx,cy) [flags] bounds=[x1,y1][x2,y2] class=X rid=Y`.
 
-`[flags]` includes both **capabilities** (`click`, `long-click`, `checkable`, `scroll`) and **state** (`checked` = switch/checkbox on, `focused` = input has focus, `selected` = active tab/item, `disabled` = greyed out). State flags are how you read a Switch's on/off or which EditText is active without a screenshot:
+`[flags]` includes both **capabilities** (`click`, `long-click`, `checkable`, `scroll`) and **state** (`checked` = switch/checkbox on, `focused` = input has focus, `selected` = active tab/item, `disabled` = greyed out, `blocked` = clickable wrapper with a disabled leaf at the same bounds). State flags are how you read a Switch's on/off or which EditText is active without a screenshot:
+
+**`[blocked]` is critical**: a `[click]` node with `[blocked]` means a clickable=true wrapper overlaps a clickable=false (disabled) node at the same bounds — the actual control is **not tappable** even though `[click]` shows. Do not tap `[click,blocked]` nodes expecting them to work; the button is disabled (e.g., a "下一步" that stays greyed until required fields are filled).
 ```
   [3] 定时发布 (908,1505) [click,checkable,checked] bounds=[831,1454][985,1556] class=Switch
   [4] — (540,1479) [click,focused] bounds=[0,599][1080,2359] class=EditText rid=body

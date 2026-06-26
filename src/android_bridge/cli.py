@@ -18,6 +18,13 @@ def main(ctx, profile):
     ctx.ensure_object(dict)
     if profile:
         dev.set_profile_override(profile)
+    # Profile header on stderr first line of every command (per my-skill-creator spec:
+    # "每条命令的输出必须在 stderr 首行标明当前 profile，无论成功失败都必须输出").
+    try:
+        resolved = dev._resolve_profile() or "default"
+    except Exception:
+        resolved = "default"
+    click.echo(f"[profile: {resolved}]", err=True)
 
 
 @main.command()
@@ -25,7 +32,7 @@ def devices():
     """List connected ADB devices."""
     devs = dev.list_devices()
     if not devs:
-        click.echo("No devices found.")
+        click.echo("No devices found.", err=True)
         sys.exit(1)
     for serial, state in devs:
         click.echo(f"{serial}\t{state}")
@@ -44,20 +51,67 @@ def connect(serial):
 
 
 @main.command()
-@click.option("--vision", is_flag=True, help="Include screenshot")
+@click.option("--vision", is_flag=True, help="(deprecated) capture screenshot; --out is now self-sufficient")
 @click.option("--json-out", "as_json", is_flag=True, help="Output as JSON")
-@click.option("--save", type=click.Path(), help="Save screenshot to file")
-def snapshot(vision, as_json, save):
+@click.option("--out", "--save", "out", type=click.Path(), help="Save a screenshot to file")
+def snapshot(vision, as_json, out):
     """Capture UI state (text + interactive elements)."""
     try:
-        snap = perception.take_snapshot(vision=vision)
+        # --out implies capture (decoupled from --vision): `snapshot --out x.png` works alone.
+        snap = perception.take_snapshot(vision=vision or bool(out))
         if as_json:
             click.echo(json.dumps(snap.to_dict(), ensure_ascii=False, indent=2))
         else:
             click.echo(snap.to_text())
-        if vision and snap.screenshot and save:
-            snap.screenshot.save(save)
-            click.echo(f"\nScreenshot saved: {save}", err=True)
+        if out and snap.screenshot:
+            snap.screenshot.save(out)
+            click.echo(f"\nScreenshot saved: {out}", err=True)
+    except Exception as e:
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)
+
+
+@main.command()
+@click.option("--json-out", "as_json", is_flag=True, help="Output as JSON")
+@click.option("--clickable", is_flag=True, help="Only interactive nodes (click/long-click/check/scroll)")
+@click.option("--all", "all_nodes", is_flag=True, help="Include anonymous layout containers (debug)")
+@click.option("--max", "max_nodes", type=int, default=200, help="Max nodes to show (default 200)")
+@click.option("--out", type=click.Path(), help="Save a screenshot to file alongside the dump")
+def dump(as_json, clickable, all_nodes, max_nodes, out):
+    """Full UI node dump — use for Flutter/Compose apps with sparse accessibility trees.
+
+    Unlike snapshot, dump preserves EVERY node with a label, resource-id, or interactive
+    flag, each with bounds + center + content-desc. Flutter apps put text in content-desc
+    and often skip clickable flags, so snapshot drops them — dump keeps them.
+
+    Use when snapshot shows too few elements, or target elements appear as label-less
+    ImageView/View. Default filter keeps labeled + interactive nodes; --clickable narrows
+    to interactive only; --all includes anonymous containers.
+    """
+    try:
+        mode = "all" if all_nodes else ("clickable" if clickable else "default")
+        result = perception.take_dump(mode=mode, max_nodes=max_nodes)
+        if as_json:
+            click.echo(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            click.echo(result.to_text())
+        if result.total_nodes == 0:
+            click.echo(
+                "\nWARNING: accessibility tree empty (0 nodes). Screen may be off, "
+                "locked, or FLAG_SECURE.\n"
+                "         Run `android-bridge screenshot --out shot.png` to verify visually.",
+                err=True,
+            )
+        if result.truncated:
+            click.echo(
+                f"\nTip: truncated ({result.total_nodes} nodes total, {max_nodes} shown) "
+                f"— use --clickable or --max N.",
+                err=True,
+            )
+        if out:
+            img = perception.take_screenshot()
+            img.save(out)
+            click.echo(f"\nScreenshot saved: {out}", err=True)
     except Exception as e:
         click.echo(f"ERROR: {e}", err=True)
         sys.exit(1)
@@ -261,3 +315,7 @@ def pull(remote, local):
     except Exception as e:
         click.echo(f"ERROR: {e}", err=True)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

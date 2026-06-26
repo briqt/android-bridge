@@ -1,4 +1,4 @@
-"""Device connection management. Supports pure ADB mode (default) and uiautomator2 mode."""
+"""Device connection management via pure ADB (no on-device agent)."""
 
 from pathlib import Path
 import json
@@ -61,14 +61,20 @@ def _resolve_profile() -> str | None:
 
 
 def _load_full_config() -> dict:
+    config, _ = _load_full_config_with_path()
+    return config
+
+
+def _load_full_config_with_path() -> tuple[dict, Path]:
+    """Return (config, path_loaded_from). Path falls back to CONFIG_FILE when none exists."""
     dev_config = Path.cwd() / ".config.json"
     if dev_config.exists():
         with open(dev_config) as f:
-            return json.load(f)
+            return json.load(f), dev_config
     if CONFIG_FILE.exists():
         with open(CONFIG_FILE) as f:
-            return json.load(f)
-    return {}
+            return json.load(f), CONFIG_FILE
+    return {}, CONFIG_FILE
 
 
 _cached_serial: str | None = None
@@ -89,9 +95,9 @@ def _load_config() -> str | None:
         if not p:
             raise RuntimeError(
                 f"Profile '{profile}' not found. Available: {list(profiles.keys())}\n"
-                f"Fix: edit {CONFIG_FILE} and add the profile under \"profiles\"."
+                f"  Fix: edit {CONFIG_FILE} and add under \"profiles\":\n"
+                f'    "{profile}": {{"serial": "<ip:5555>"}}'
             )
-        print(f"[profile: {profile}]", file=sys.stderr)
         _cached_serial = p.get("serial")
         return _cached_serial
     device = config.get("device", {})
@@ -101,21 +107,22 @@ def _load_config() -> str | None:
     profiles = config.get("profiles", {})
     active = config.get("active")
     if active and active in profiles:
-        print(f"[profile: {active}]", file=sys.stderr)
         _cached_serial = profiles[active].get("serial")
         return _cached_serial
     return None
 
 
 def _save_config(serial: str, profile: str | None = None) -> None:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    config = _load_full_config()
+    # Write back to the SAME file we loaded from, so a dev override (.config.json in cwd)
+    # doesn't lose state by having saves silently redirected to CONFIG_FILE.
+    config, path = _load_full_config_with_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
     if profile:
         config.setdefault("profiles", {})[profile] = {"serial": serial}
         config["active"] = profile
     else:
         config.setdefault("device", {})["serial"] = serial
-    CONFIG_FILE.write_text(json.dumps(config, indent=2) + "\n")
+    path.write_text(json.dumps(config, indent=2) + "\n")
 
 
 def adb(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
@@ -206,7 +213,11 @@ def connect(serial: str | None = None) -> str:
         devices = list_devices()
         online = [s for s, state in devices if state == "device"]
         if not online:
-            raise RuntimeError("No device found. Specify a serial or connect a device.")
+            raise RuntimeError(
+                "No device found. Specify a serial or connect a device.\n"
+                "  Fix: android-bridge connect <ip:5555>  (WiFi ADB, e.g. 192.168.1.100:5555)\n"
+                "  Or:  plug in via USB and run `android-bridge connect`"
+            )
         serial = online[0]
     else:
         serial = _normalize_serial(serial)
@@ -227,5 +238,9 @@ def get_serial() -> str:
     devices = list_devices()
     online = [s for s, state in devices if state == "device"]
     if not online:
-        raise RuntimeError("No device connected. Run: android-bridge connect <serial>")
+        raise RuntimeError(
+            "No device connected.\n"
+            "  Fix: android-bridge connect <ip:5555>  (e.g. 192.168.1.100:5555)\n"
+            f"  Config: {CONFIG_FILE}"
+        )
     return online[0]

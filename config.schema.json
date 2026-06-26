@@ -4,7 +4,7 @@
   "properties": {
     "active": {
       "type": "string",
-      "description": "Default profile name to use when no --profile or SKILL_PROFILE is set"
+      "description": "Default profile name to use when no --profile flag is given"
     },
     "adb_path": {
       "type": "string",
@@ -31,6 +31,16 @@
         "required": ["serial"]
       },
       "description": "Named device profiles"
+    },
+    "device": {
+      "type": "object",
+      "properties": {
+        "serial": {
+          "type": "string",
+          "description": "Remembered device serial/IP:port when no profile is active (written by `connect`)"
+        }
+      },
+      "description": "Default device remembered across sessions when no profile is active"
     }
   }
 }

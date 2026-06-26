@@ -1,7 +1,7 @@
 [project]
 name = "android-bridge"
-version = "0.1.0"
-description = "AI-facing interface for Android device automation via ADB and uiautomator2"
+version = "0.2.0"
+description = "AI-facing interface for Android device automation via pure ADB"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"

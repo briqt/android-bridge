@@ -26,9 +26,21 @@
           "serial": {
             "type": "string",
             "description": "Device serial or IP:port for WiFi ADB (e.g. 192.168.1.100:5555)"
+          },
+          "root_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "required",
+              "never"
+            ],
+            "default": "auto",
+            "description": "Privilege mode for UI input and IME operations; auto retries as root only on explicit permission denial"
           }
         },
-        "required": ["serial"]
+        "required": [
+          "serial"
+        ]
       },
       "description": "Named device profiles"
     },
@@ -38,9 +50,29 @@
         "serial": {
           "type": "string",
           "description": "Remembered device serial/IP:port when no profile is active (written by `connect`)"
+        },
+        "root_mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "required",
+            "never"
+          ],
+          "default": "auto",
+          "description": "Privilege mode for UI input and IME operations; auto retries as root only on explicit permission denial"
         }
       },
       "description": "Default device remembered across sessions when no profile is active"
+    },
+    "root_mode": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "required",
+        "never"
+      ],
+      "default": "auto",
+      "description": "Privilege mode for UI input and IME operations; auto retries as root only on explicit permission denial"
     }
   }
 }

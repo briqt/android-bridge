@@ -7,7 +7,7 @@ AI-facing interface for Android device automation via pure ADB. Designed to be c
 ### As a Skill (for AI agents)
 
 ```bash
-npx skills add briqt/android-bridge
+npx skills add briqt/android-bridge -g -y
 ```
 
 ### As a CLI tool (standard)
@@ -15,6 +15,19 @@ npx skills add briqt/android-bridge
 ```bash
 pipx install git+https://github.com/briqt/android-bridge.git
 ```
+
+### Update and verify
+
+```bash
+pipx install --force git+https://github.com/briqt/android-bridge.git
+npx skills add briqt/android-bridge -g -y
+android-bridge --version
+android-bridge doctor --json
+```
+
+Version 0.3.0 adds per-profile `root_mode` (`auto`, `required`, `never`), offline
+capability diagnostics, file/stdin text input, and first-cause UI capture errors.
+Text payloads are not echoed. Use `type-cjk --file input.txt` for multiline content.
 
 ### For development
 
@@ -27,9 +40,9 @@ pipx install --editable .
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.11+
 - ADB (Android Debug Bridge) on PATH, or set `"adb_path"` in `~/.config/agent-skills/android-bridge/config.json`
-- Android device with USB debugging enabled (root recommended)
+- Android device with USB debugging enabled; root is optional and selected per profile
 
 ## Usage
 
@@ -59,3 +72,10 @@ android-bridge shell --root "cat /sys/class/power_supply/battery/capacity"
 - **LLM is the brain, tool is the hands.** No decision logic in the tool — just atomic operations (perceive, tap, swipe, type).
 - **Pure ADB, zero on-device dependencies.** No apps, no agents, no Accessibility Service installed on the phone.
 - **CLI is the single source of truth.** Skill is documentation; future MCP would be a protocol wrapper around CLI.
+
+## Dependencies verified for 0.3.0
+
+Runtime: Click 8.5.0 and Pillow 13.0.0; build: Hatchling 1.32.4. Pillow 13 requires
+Python 3.11+, so this release raises the Python minimum accordingly. Test/build
+extras use pytest 9.1.1 and build 1.6.1 (`pip install -e '.[dev]'`). Input streams
+use Python's stdin API rather than Click's deprecated get_text_stream helper.

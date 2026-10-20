@@ -3,6 +3,11 @@
 import json
 import os
 import sys
+from pathlib import Path
+from importlib.metadata import version as distribution_version
+import shutil
+
+from android_bridge import __version__
 
 import click
 
@@ -11,6 +16,7 @@ from android_bridge import perception, actions
 
 
 @click.group()
+@click.version_option(version=__version__)
 @click.option("--profile", "-p", default=None, help="Device profile to use")
 @click.pass_context
 def main(ctx, profile):
@@ -25,6 +31,44 @@ def main(ctx, profile):
     except Exception:
         resolved = "default"
     click.echo(f"[profile: {resolved}]", err=True)
+
+
+def _input_text(text, input_file, from_stdin):
+    if sum((text is not None, input_file is not None, from_stdin)) != 1:
+        raise click.UsageError("Provide exactly one of TEXT, --file PATH, or --stdin")
+    if input_file is not None:
+        return Path(input_file).read_text(encoding="utf-8")
+    if from_stdin:
+        value = sys.stdin.read()
+        if not value:
+            raise click.UsageError("stdin is empty")
+        return value
+    return text
+
+
+def _save_image(image, out):
+    destination = Path(out)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    image.save(destination)
+
+
+@main.command()
+@click.option("--json", "as_json", is_flag=True, help="Machine-readable installation report")
+def doctor(as_json):
+    """Inspect installed capabilities/configuration without connecting to a device."""
+    try:
+        config, source = dev._load_full_config_with_path()
+        report = {
+            "version": __version__, "dependencies": {"click": distribution_version("click"), "pillow": distribution_version("pillow")}, "python": sys.executable,
+            "cli_path": str(Path(sys.argv[0]).resolve()), "path_cli": shutil.which("android-bridge"), "module_path": __file__,
+            "config_path": str(source), "config_exists": source.exists(),
+            "profile": dev._resolve_profile() or "default", "root_mode": dev.root_mode(),
+            "adb_path": shutil.which(config.get("adb_path") or "adb"),
+            "capabilities": ["snapshot", "dump", "type-cjk", "stdin-input", "file-input", "root-mode", "structured-ui-errors"],
+        }
+        click.echo(json.dumps(report, ensure_ascii=False, indent=None if as_json else 2))
+    except Exception as error:
+        raise click.ClickException(str(error))
 
 
 @main.command()
@@ -64,7 +108,7 @@ def snapshot(vision, as_json, out):
         else:
             click.echo(snap.to_text())
         if out and snap.screenshot:
-            snap.screenshot.save(out)
+            _save_image(snap.screenshot, out)
             click.echo(f"\nScreenshot saved: {out}", err=True)
     except Exception as e:
         click.echo(f"ERROR: {e}", err=True)
@@ -110,7 +154,7 @@ def dump(as_json, clickable, all_nodes, max_nodes, out):
             )
         if out:
             img = perception.take_screenshot()
-            img.save(out)
+            _save_image(img, out)
             click.echo(f"\nScreenshot saved: {out}", err=True)
     except Exception as e:
         click.echo(f"ERROR: {e}", err=True)
@@ -124,7 +168,7 @@ def screenshot(out):
     try:
         img = perception.take_screenshot()
         if out:
-            img.save(out)
+            _save_image(img, out)
             click.echo(f"Saved: {out}")
         else:
             click.echo(perception.screenshot_to_base64(img))
@@ -172,20 +216,27 @@ def swipe(x1, y1, x2, y2):
 
 
 @main.command("type")
-@click.argument("text")
-def type_cmd(text):
+@click.argument("text", required=False)
+@click.option("--file", "input_file", type=click.Path(exists=True, dir_okay=False), help="Read UTF-8 input from a file")
+@click.option("--stdin", "from_stdin", is_flag=True, help="Read text from stdin")
+def type_cmd(text, input_file, from_stdin):
     """Type text (ASCII only; use type-cjk for CJK/unicode)."""
     try:
-        click.echo(actions.type_text(text))
+        value = _input_text(text, input_file, from_stdin)
+        click.echo(actions.type_text(value))
+    except click.UsageError:
+        raise
     except Exception as e:
-        click.echo(f"ERROR: {e}", err=True)
+        click.echo(f"ERROR: [{getattr(e, 'code', 'INPUT_FAILED')}] text input failed; input content suppressed", err=True)
         sys.exit(1)
 
 
 @main.command("type-cjk")
-@click.argument("text")
+@click.argument("text", required=False)
+@click.option("--file", "input_file", type=click.Path(exists=True, dir_okay=False), help="Read UTF-8 input from a file")
+@click.option("--stdin", "from_stdin", is_flag=True, help="Read text from stdin")
 @click.option("--at", nargs=2, type=int, default=None, help="Tap coordinates (x y) to focus field first")
-def type_cjk_cmd(text, at):
+def type_cjk_cmd(text, input_file, from_stdin, at):
     """Type CJK/unicode text via ADBKeyBoard.
 
     Automatically handles IME switching and InputConnection establishment.
@@ -193,9 +244,12 @@ def type_cjk_cmd(text, at):
     """
     try:
         tap_x, tap_y = at if at else (None, None)
-        click.echo(actions.type_cjk(text, tap_x, tap_y))
+        value = _input_text(text, input_file, from_stdin)
+        click.echo(actions.type_cjk(value, tap_x, tap_y))
+    except click.UsageError:
+        raise
     except Exception as e:
-        click.echo(f"ERROR: {e}", err=True)
+        click.echo(f"ERROR: [{getattr(e, 'code', 'INPUT_FAILED')}] Unicode input failed; input content suppressed", err=True)
         sys.exit(1)
 
 
@@ -271,7 +325,6 @@ def shell(cmd, root, script_file):
     """
     try:
         if script_file:
-            from pathlib import Path
             content = Path(script_file).read_text()
             result = actions.shell_script(content, root=root)
         elif cmd:

@@ -8,10 +8,11 @@ import base64
 import re
 import subprocess
 import tempfile
+import uuid
 
 from PIL import Image
 
-from android_bridge.device import adb_shell, adb, get_serial, _adb_base
+from android_bridge.device import adb_shell, adb, get_serial, _adb_base, BridgeError
 
 BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 
@@ -344,11 +345,33 @@ def dump_hierarchy(xml_str: str, mode: str = "default", max_nodes: int = 200) ->
 
 
 def _capture_ui_xml() -> str:
-    """Dump current UI hierarchy to a temp file on device and read it back."""
-    adb_shell("uiautomator dump /sdcard/window_dump.xml")
-    xml_str = adb_shell("cat /sdcard/window_dump.xml")
-    adb_shell("rm -f /sdcard/window_dump.xml")
-    return xml_str
+    """Use a per-call path and preserve the dump failure instead of a later cat error."""
+    remote = f"/sdcard/android-bridge-{uuid.uuid4().hex}.xml"
+    try:
+        try:
+            message = adb_shell(f"uiautomator dump {remote}")
+        except RuntimeError as error:
+            message = str(error)
+            if "null root" not in message.lower() and "idle state" not in message.lower():
+                raise
+        lower = message.lower()
+        if "null root" in lower:
+            raise BridgeError("UI_ROOT_UNAVAILABLE", "uiautomator returned a null root; check screen wakefulness and lock state. " + message)
+        if "idle state" in lower:
+            raise BridgeError("UI_NOT_IDLE", "uiautomator could not get an idle UI; inspect animation/loading state. " + message)
+        if "error" in lower:
+            raise BridgeError("UI_DUMP_FAILED", message)
+        xml = adb_shell(f"cat {remote}")
+        if not xml.lstrip().startswith("<"):
+            raise BridgeError("UI_XML_INVALID", "uiautomator did not return XML: " + xml[:300])
+        return xml
+    except subprocess.TimeoutExpired as error:
+        raise BridgeError("UI_DUMP_TIMEOUT", "uiautomator timed out; check device connectivity, wakefulness, and animation state") from error
+    finally:
+        try:
+            adb_shell(f"rm -f {remote}")
+        except Exception:
+            pass
 
 
 def take_snapshot(vision: bool = False) -> Snapshot:
@@ -368,25 +391,26 @@ def take_screenshot() -> Image.Image:
     serial = get_serial()
     cmd_base = _adb_base() + ["-s", serial]
     tmp_path = None
+    remote_path = f"/sdcard/android-bridge-{uuid.uuid4().hex}.png"
     try:
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
             tmp_path = f.name
         subprocess.run(
-            cmd_base + ["shell", "screencap", "-p", "/sdcard/screen.png"],
-            capture_output=True, timeout=10
+            cmd_base + ["shell", "screencap", "-p", remote_path],
+            capture_output=True, timeout=10, check=True
         )
         subprocess.run(
-            cmd_base + ["pull", "/sdcard/screen.png", tmp_path],
-            capture_output=True, timeout=10
-        )
-        subprocess.run(
-            cmd_base + ["shell", "rm", "-f", "/sdcard/screen.png"],
-            capture_output=True, timeout=5
+            cmd_base + ["pull", remote_path, tmp_path],
+            capture_output=True, timeout=10, check=True
         )
         img = Image.open(tmp_path)
         img.load()  # Force read before deleting temp file
         return img
     finally:
+        try:
+            subprocess.run(cmd_base + ["shell", "rm", "-f", remote_path], capture_output=True, timeout=5)
+        except Exception:
+            pass
         if tmp_path:
             Path(tmp_path).unlink(missing_ok=True)
 

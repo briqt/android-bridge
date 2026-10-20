@@ -1,6 +1,6 @@
 ---
 name: android-bridge
-description: Control a connected Android phone via ADB — tap, swipe, type, read screen via the accessibility tree, take screenshots (for humans/vision models), run shell commands. Use this skill whenever the user wants to interact with their Android device, automate phone tasks, read what's on the phone screen, check phone status, open apps, navigate UI, or perform any mobile device operation. Also use when the user mentions "手机", "phone", "device", "screen", or references android-bridge commands. Works for both text-only and vision-capable models.
+description: Control a connected Android phone via ADB — tap, swipe, type, read screen via the accessibility tree, take screenshots (for humans/vision models), run shell commands. Use this skill whenever the user wants to interact with their Android device, automate phone tasks, read what's on the phone screen, check phone status, open apps, navigate UI, or perform any mobile device operation. Use for Android device operations or android-bridge troubleshooting; a generic mention of a phone or screen does not require this skill. Works for both text-only and vision-capable models.
 ---
 
 # Android Device Control
@@ -8,6 +8,22 @@ description: Control a connected Android phone via ADB — tap, swipe, type, rea
 Operate a connected Android device through the `android-bridge` CLI. Every interaction follows a **perceive → locate → act → verify → escalate** loop. The CLI is the single source of truth; this file is the agent-facing manual.
 
 **Every command prints `[profile: <name>]` on the first line of stderr** (success or failure — defaults to `[profile: default]` when no profile is active). That is by design: use it to confirm which device is active. Stdout carries results; stderr carries diagnostics.
+
+## Version and capability check
+
+This manual requires **android-bridge 0.3.0+** and **Python 3.11+** (Pillow 13). Skill installation and CLI installation
+are separate. Check the binary before using newly documented commands:
+
+```bash
+android-bridge --version
+android-bridge doctor --json   # offline: no device connection or screen changes
+# Upgrade CLI and skill:
+pipx install --force git+https://github.com/briqt/android-bridge.git
+npx skills add briqt/android-bridge -g -y
+```
+
+The doctor reports the actual module/Python/ADB paths, config source, profile,
+root mode and supported capabilities. Missing ADB must be fixed separately.
 
 ## Quick Start
 
@@ -30,8 +46,8 @@ android-bridge tap 540 1200                                      # act
 | `long-tap` | `x y` | Long press. |
 | `swipe` | `x1 y1 x2 y2` | Swipe / scroll. |
 | `drag` | `x1 y1 x2 y2` | Drag and drop. |
-| `type` | `"text"` | ASCII only (use `type-cjk` for CJK). |
-| `type-cjk` | `"文本" [--at x y]` | CJK/unicode via ADBKeyBoard. |
+| `type` | `[TEXT] [--stdin | --file PATH]` | ASCII only (use `type-cjk` for CJK). |
+| `type-cjk` | `[TEXT] [--stdin | --file PATH] [--at x y]` | CJK/unicode via ADBKeyBoard. |
 | `clear-field` | `[--at x y]` | Clear focused field. |
 | `select-all` | `[--at x y]` | Select all in focused field. |
 | `press` | `button` | back\|home\|enter\|power\|volume_up\|volume_down\|tab\|delete\|recent (or any `KEYCODE_*`). |
@@ -75,10 +91,10 @@ Global: `-p`/`--profile <name>` selects a device profile.
 Operation failed?
 │
 ├─ snapshot/dump returns ERROR / "null root node"
-│   ├─ Screen off/locked → android-bridge shell --root "input keyevent KEYCODE_POWER" → retry
+│   ├─ Screen off/locked → android-bridge press KEYCODE_WAKEUP → retry
 │   └─ Still null → android-bridge devices
 │       ├─ No device → android-bridge connect <ip:5555> (WiFi) or plug USB
-│       └─ "offline" → android-bridge shell --root "input keyevent 224" (WAKEUP); retry; still offline → ask user to replug
+│       └─ "offline" → reconnect the configured endpoint; device input commands cannot repair an offline transport
 │
 ├─ snapshot/dump reports "could not get idle state" / dump fails
 │   └─ Flutter animation never idle → retry ≤3 times → still failing: android-bridge shell "uiautomator dump --compressed /sdcard/d.xml && cat /sdcard/d.xml" → still failing: blind-operate by geometry + verify post-action
@@ -194,6 +210,19 @@ android-bridge type-cjk "中文内容"              # field must already have fo
 android-bridge type-cjk "中文内容" --at 638 779 # tap field first, then type
 ```
 
+For multiline input, text starting with `-`, or sensitive values, avoid positional
+arguments and their shell history:
+
+```bash
+android-bridge type-cjk --file input.txt --at 638 779
+cat input.txt | android-bridge type-cjk --stdin --at 638 779
+android-bridge type-cjk -- "-leading-dash text"
+```
+
+Input commands report character counts and suppress payloads on errors. The previous
+IME is restored even if typing fails. File/stdin content is preserved, including
+newlines; input into the field still needs verification through snapshot/dump.
+
 Related:
 ```bash
 android-bridge clear-field                      # clear focused field
@@ -305,7 +334,7 @@ pipx install git+https://github.com/briqt/android-bridge.git
 ### Waking the device
 The device must be awake for UI ops. If `snapshot` fails with "null root node":
 ```bash
-android-bridge shell --root "input keyevent KEYCODE_POWER"
+android-bridge press KEYCODE_WAKEUP
 ```
 
 ### Multi-device (profiles)
@@ -315,6 +344,16 @@ android-bridge -p mi11 snapshot
 android-bridge -p tablet tap 500 800
 ```
 Profiles live in `~/.config/agent-skills/android-bridge/config.json`. Selection priority: `--profile` flag > `active` field.
+
+UI/IME commands support `root_mode` at the top level or inside each profile:
+`auto` (default) uses ordinary shell privileges and retries as root only after an
+explicit permission denial; `required` uses root directly; `never` forbids escalation.
+For a device known to require root for input, configure its profile with
+`"root_mode": "required"`. Do not apply one device's power or root rules to other devices.
+
+`UI_ROOT_UNAVAILABLE`, `UI_NOT_IDLE`, `UI_DUMP_TIMEOUT`, `ADB_OFFLINE` and
+`ADB_UNAUTHORIZED` retain the first failure cause. A UI capture uses a unique remote
+file and cleans it up; do not interpret an XML capture failure as a missing local file.
 
 ### ADB not on PATH
 Set `adb_path` in config:
@@ -338,7 +377,7 @@ Runtime data lives in `~/.config/agent-skills/android-bridge/config.json`:
   "adb_host": "",
   "adb_port": 5037,
   "profiles": {
-    "mi11": { "serial": "192.168.31.20:5555" }
+    "mi11": { "serial": "192.168.31.20:5555", "root_mode": "required" }
   },
   "device": { "serial": "" }
 }

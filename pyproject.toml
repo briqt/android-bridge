@@ -1,25 +1,28 @@
 [project]
 name = "android-bridge"
-version = "0.2.2"
+version = "0.3.0"
 description = "AI-facing interface for Android device automation via pure ADB"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 keywords = ["android", "adb", "automation", "agent", "cli"]
 dependencies = [
-    "click>=8.0",
-    "pillow>=10.0",
+    "click==8.5.0",
+    "pillow==13.0.0",
 ]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1", "build==1.6.1"]
 
 [project.scripts]
 android-bridge = "android_bridge.cli:main"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/android_bridge"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/"]
+include = ["src/", "README.md", "pyproject.toml"]

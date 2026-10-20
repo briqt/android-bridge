@@ -11,6 +11,44 @@ import subprocess
 CONFIG_DIR = Path.home() / ".config" / "agent-skills" / "android-bridge"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
+class BridgeError(RuntimeError):
+    """An actionable failure category, retaining diagnostics from its first cause."""
+    def __init__(self, code: str, message: str):
+        self.code = code
+        super().__init__(f"[{code}] {message}")
+
+
+def _command_error(result) -> BridgeError:
+    message = (result.stderr.strip() + "\n" + result.stdout.strip()).strip()
+    lower = message.lower()
+    code = "ADB_UNAUTHORIZED" if "unauthorized" in lower else "ADB_OFFLINE" if "offline" in lower else "ADB_DEVICE_NOT_FOUND" if "not found" in lower and "device" in lower else "ADB_COMMAND_FAILED"
+    return BridgeError(code, message or f"adb shell failed (exit {result.returncode})")
+
+
+def root_mode() -> str:
+    config = _load_full_config()
+    profile = _resolve_profile()
+    settings = config.get("profiles", {}).get(profile, {}) if profile else config.get("device", {})
+    mode = settings.get("root_mode", config.get("root_mode", "auto"))
+    if mode not in ("auto", "required", "never"):
+        raise BridgeError("CONFIG_INVALID", f"root_mode must be auto|required|never. Edit {CONFIG_FILE}")
+    return mode
+
+
+def action_shell(command: str) -> str:
+    """Prefer shell privileges; retry as root only after an explicit permission denial."""
+    mode = root_mode()
+    if mode == "required":
+        return adb_shell(command, root=True)
+    try:
+        return adb_shell(command)
+    except BridgeError as error:
+        permission = any(word in str(error).lower() for word in ("permission denial", "permission denied", "securityexception", "inject_events", "requires root", "operation not permitted"))
+        if mode != "auto" or not permission:
+            raise
+        return adb_shell(command, root=True)
+
+
 _profile_override: str | None = None
 
 
@@ -118,7 +156,7 @@ def _save_config(serial: str, profile: str | None = None) -> None:
     config, path = _load_full_config_with_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     if profile:
-        config.setdefault("profiles", {})[profile] = {"serial": serial}
+        config.setdefault("profiles", {}).setdefault(profile, {})["serial"] = serial
         config["active"] = profile
     else:
         config.setdefault("device", {})["serial"] = serial
@@ -146,9 +184,8 @@ def adb_shell(cmd: str, root: bool = False, timeout: int = 30) -> str:
         cmd_parts.extend(["shell", cmd])
     result = subprocess.run(cmd_parts, capture_output=True, text=True, timeout=timeout)
     output = result.stdout.strip()
-    if result.returncode != 0 and not output:
-        err = result.stderr.strip()
-        raise RuntimeError(err or output or f"adb shell failed (exit {result.returncode})")
+    if result.returncode != 0:
+        raise _command_error(result)
     return output
 
 
@@ -174,9 +211,8 @@ def adb_shell_script(script: str, root: bool = False, timeout: int = 30) -> str:
         timeout=timeout,
     )
     output = result.stdout.strip()
-    if result.returncode != 0 and not output:
-        err = result.stderr.strip()
-        raise RuntimeError(err or f"adb shell failed (exit {result.returncode})")
+    if result.returncode != 0:
+        raise _command_error(result)
     return output
 
 

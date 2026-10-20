@@ -93,15 +93,15 @@ def test_resolve_profile_override():
 
 # --- actions (mocked) ---
 
-@patch("android_bridge.actions.adb_shell")
+@patch("android_bridge.actions.action_shell")
 def test_tap_calls_adb(mock_shell):
     from android_bridge import actions
     result = actions.tap(100, 200)
-    mock_shell.assert_called_once_with("input tap 100 200", root=True)
+    mock_shell.assert_called_once_with("input tap 100 200")
     assert "100" in result and "200" in result
 
 
-@patch("android_bridge.actions.adb_shell")
+@patch("android_bridge.actions.action_shell")
 def test_type_text_escapes_quotes(mock_shell):
     from android_bridge import actions
     actions.type_text("it's a test")
@@ -110,11 +110,11 @@ def test_type_text_escapes_quotes(mock_shell):
     assert "'" not in call_args or "\\'" in call_args or "'\"'\"'" in call_args or "it\\'s" in call_args or "'it'\\''s a test'" in call_args
 
 
-@patch("android_bridge.actions.adb_shell")
+@patch("android_bridge.actions.action_shell")
 def test_press_maps_button(mock_shell):
     from android_bridge import actions
     actions.press("back")
-    mock_shell.assert_called_once_with("input keyevent KEYCODE_BACK", root=True)
+    mock_shell.assert_called_once_with("input keyevent KEYCODE_BACK")
 
 
 # --- perception.dump_hierarchy ---

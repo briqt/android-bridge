@@ -8,7 +8,13 @@ import shutil
 import sys
 import subprocess
 
-CONFIG_DIR = Path.home() / ".config" / "agent-skills" / "android-bridge"
+def _config_dir() -> Path:
+    """Runtime directory; ANDROID_BRIDGE_HOME relocates it (e.g. to isolate tests)."""
+    custom = os.environ.get("ANDROID_BRIDGE_HOME", "").strip()
+    return Path(custom).expanduser() if custom else Path.home() / ".config" / "agent-skills" / "android-bridge"
+
+
+CONFIG_DIR = _config_dir()
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 class BridgeError(RuntimeError):
@@ -104,15 +110,19 @@ def _load_full_config() -> dict:
 
 
 def _load_full_config_with_path() -> tuple[dict, Path]:
-    """Return (config, path_loaded_from). Path falls back to CONFIG_FILE when none exists."""
-    dev_config = Path.cwd() / ".config.json"
-    if dev_config.exists():
-        with open(dev_config) as f:
-            return json.load(f), dev_config
-    if CONFIG_FILE.exists():
-        with open(CONFIG_FILE) as f:
-            return json.load(f), CONFIG_FILE
-    return {}, CONFIG_FILE
+    """Return (config, CONFIG_FILE). Config is read only from CONFIG_FILE: never from the
+    current working directory or the installed skill directory. A missing file means defaults;
+    an unreadable one is an error, never a silent fallback."""
+    path = CONFIG_FILE
+    if not path.exists():
+        return {}, path
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise BridgeError("CONFIG_INVALID", f"cannot read {path}: {error}. Fix: correct the JSON in {path}, or delete it to start from defaults")
+    if not isinstance(config, dict):
+        raise BridgeError("CONFIG_INVALID", f"{path} must contain a JSON object. Fix: correct {path}, or delete it to start from defaults")
+    return config, path
 
 
 _cached_serial: str | None = None
@@ -151,8 +161,7 @@ def _load_config() -> str | None:
 
 
 def _save_config(serial: str, profile: str | None = None) -> None:
-    # Write back to the SAME file we loaded from, so a dev override (.config.json in cwd)
-    # doesn't lose state by having saves silently redirected to CONFIG_FILE.
+    # Merge into the existing CONFIG_FILE so unrelated settings (root_mode, adb_*) survive.
     config, path = _load_full_config_with_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     if profile:

@@ -13,3 +13,6 @@ build/
 
 # Virtual env
 .venv/
+
+# Local maintainer files
+/AGENTS.md

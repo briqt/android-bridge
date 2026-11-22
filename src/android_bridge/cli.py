@@ -13,15 +13,29 @@ import click
 
 from android_bridge import device as dev
 from android_bridge import perception, actions
+from android_bridge import update_check
+
+# Commands that must stay offline: diagnostics and the explicit check itself.
+_NO_AUTO_UPDATE_CHECK = {"doctor", "check-update"}
+
+
+def _update_check_disabled(no_update_check: bool) -> bool:
+    try:
+        config_disabled = dev._load_full_config().get("disable_update_check") is True
+    except Exception:
+        config_disabled = False
+    return update_check.is_update_disabled(no_update_check=no_update_check, config_disabled=config_disabled)
 
 
 @click.group()
 @click.version_option(version=__version__)
 @click.option("--profile", "-p", default=None, help="Device profile to use")
+@click.option("--no-update-check", is_flag=True, help="Disable update checks and cached notices for this call")
 @click.pass_context
-def main(ctx, profile):
+def main(ctx, profile, no_update_check):
     """AI-facing interface for Android device automation."""
     ctx.ensure_object(dict)
+    ctx.obj["no_update_check"] = no_update_check
     if profile:
         dev.set_profile_override(profile)
     # Profile header on stderr first line of every command (per my-skill-creator spec:
@@ -31,6 +45,41 @@ def main(ctx, profile):
     except Exception:
         resolved = "default"
     click.echo(f"[profile: {resolved}]", err=True)
+
+
+@main.result_callback()
+@click.pass_context
+def _after_command(ctx, *_args, **_kwargs):
+    """Best-effort update notice after a successful command; never changes output or exit code."""
+    if ctx.invoked_subcommand in _NO_AUTO_UPDATE_CHECK:
+        return
+    try:
+        if not _update_check_disabled(ctx.obj.get("no_update_check", False)):
+            update_check.check_update(dev.CONFIG_FILE.parent)
+    except Exception:
+        pass
+
+
+@main.command("check-update")
+@click.option("--json", "as_json", is_flag=True, help="Machine-readable result")
+@click.pass_context
+def check_update_cmd(ctx, as_json):
+    """Check the published release manifest now (bypasses the hourly cache)."""
+    disabled = _update_check_disabled(ctx.obj.get("no_update_check", False))
+    result = update_check.check_update(dev.CONFIG_FILE.parent, disabled=disabled, force=True,
+                                       emit=lambda _text: None)
+    if as_json:
+        click.echo(json.dumps(result, ensure_ascii=False))
+    elif result.get("update_available"):
+        click.echo(f"android-bridge {result['latest_version']} available (current {result['current_version']}): {result['release_url']}")
+        click.echo("Upgrade CLI: pipx install --force git+https://github.com/briqt/android-bridge.git")
+        click.echo("Sync companion skill: npx skills add briqt/android-bridge -g -y")
+    else:
+        detail = f" ({result['error']})" if result.get("error") else ""
+        latest = f", latest {result['latest_version']}" if result.get("latest_version") else ""
+        click.echo(f"Update check: {result['status']}{latest}{detail}")
+    if result["status"] in ("busy", "unavailable"):
+        sys.exit(1)
 
 
 def _input_text(text, input_file, from_stdin):

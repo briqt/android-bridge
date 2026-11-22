@@ -10,5 +10,6 @@
   },
   "device": {
     "serial": ""
-  }
+  },
+  "disable_update_check": false
 }

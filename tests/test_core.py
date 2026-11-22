@@ -71,18 +71,41 @@ def test_parse_hierarchy_to_dict():
 
 # --- device config loading ---
 
-def test_load_full_config_from_cwd(tmp_path, monkeypatch):
+def test_config_is_read_only_from_config_file_never_cwd(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    config_data = {"active": "test", "profiles": {"test": {"serial": "1.2.3.4:5555"}}}
-    (tmp_path / ".config.json").write_text(json.dumps(config_data))
+    config_file = tmp_path / "home" / "config.json"
+    config_file.parent.mkdir()
+    monkeypatch.setattr(device, "CONFIG_FILE", config_file)
+    # A hostile/broken .config.json in cwd must be ignored.
+    (tmp_path / ".config.json").write_text("{broken")
+    config_file.write_text(json.dumps({"active": "test", "profiles": {"test": {"serial": "1.2.3.4:5555"}}}))
 
     # Reset cached state
     device._cached_serial = None
     device._config_loaded = False
     device._profile_override = None
 
-    config = device._load_full_config()
+    config, path = device._load_full_config_with_path()
+    assert path == config_file
     assert config["active"] == "test"
+
+
+def test_invalid_config_is_an_error_not_a_fallback(tmp_path, monkeypatch):
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr(device, "CONFIG_FILE", config_file)
+    config_file.write_text("{broken")
+    with pytest.raises(device.BridgeError, match="CONFIG_INVALID"):
+        device._load_full_config()
+    config_file.write_text("[]")
+    with pytest.raises(device.BridgeError, match="CONFIG_INVALID"):
+        device._load_full_config()
+
+
+def test_android_bridge_home_relocates_runtime_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANDROID_BRIDGE_HOME", str(tmp_path / "abh"))
+    assert device._config_dir() == tmp_path / "abh"
+    monkeypatch.setenv("ANDROID_BRIDGE_HOME", "  ")
+    assert device._config_dir() == Path.home() / ".config" / "agent-skills" / "android-bridge"
 
 
 def test_resolve_profile_override():
@@ -309,33 +332,25 @@ def test_dump_not_blocked_without_overlay():
             assert n.blocked is False
 
 
-# --- device config write-back (A6 regression: save must write to loaded source path) ---
+# --- device config write-back: save merges into CONFIG_FILE ---
 
-def test_save_config_writes_to_dev_override(tmp_path, monkeypatch):
+def test_save_config_merges_into_config_file(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    config_file = tmp_path / "home" / "config.json"
+    monkeypatch.setattr(device, "CONFIG_FILE", config_file)
     device._cached_serial = None
     device._config_loaded = False
     device._profile_override = None
-    (tmp_path / ".config.json").write_text(json.dumps({"profiles": {"mi11": {"serial": "1.2.3.4:5555"}}}))
+    config_file.parent.mkdir()
+    config_file.write_text(json.dumps({"adb_port": 5038, "profiles": {"phone": {"serial": "1.2.3.4:5555"}}}))
 
-    device._save_config("5.6.7.8:5555", profile="mi11")
+    device._save_config("5.6.7.8:5555", profile="phone")
 
-    # Must write back to .config.json (dev override), NOT split to CONFIG_FILE
-    written = json.loads((tmp_path / ".config.json").read_text())
-    assert written["profiles"]["mi11"]["serial"] == "5.6.7.8:5555"
-    assert written["active"] == "mi11"
-
-
-def test_load_full_config_with_path_returns_source(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    device._cached_serial = None
-    device._config_loaded = False
-    device._profile_override = None
-    (tmp_path / ".config.json").write_text(json.dumps({"active": "x"}))
-
-    config, path = device._load_full_config_with_path()
-    assert path == tmp_path / ".config.json"
-    assert config["active"] == "x"
+    written = json.loads(config_file.read_text())
+    assert written["profiles"]["phone"]["serial"] == "5.6.7.8:5555"
+    assert written["active"] == "phone"
+    assert written["adb_port"] == 5038
+    assert not (tmp_path / ".config.json").exists()
 
 
 # --- CLI profile header + error stream (A3, A4) ---

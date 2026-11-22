@@ -73,6 +73,11 @@
       ],
       "default": "auto",
       "description": "Privilege mode for UI input and IME operations; auto retries as root only on explicit permission denial"
+    },
+    "disable_update_check": {
+      "type": "boolean",
+      "default": false,
+      "description": "Disable automatic update checks and cached notices (check-update reports 'disabled')"
     }
   }
 }

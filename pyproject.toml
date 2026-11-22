@@ -1,6 +1,6 @@
 [project]
 name = "android-bridge"
-version = "0.3.0"
+dynamic = ["version"]
 description = "AI-facing interface for Android device automation via pure ADB"
 readme = "README.md"
 license = { text = "MIT" }
@@ -20,6 +20,9 @@ android-bridge = "android_bridge.cli:main"
 [build-system]
 requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/android_bridge/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/android_bridge"]

@@ -25,9 +25,12 @@ android-bridge --version
 android-bridge doctor --json
 ```
 
-Version 0.3.0 adds per-profile `root_mode` (`auto`, `required`, `never`), offline
-capability diagnostics, file/stdin text input, and first-cause UI capture errors.
-Text payloads are not echoed. Use `type-cjk --file input.txt` for multiline content.
+Version 0.4.0 adds `android-bridge check-update [--json]` and a bounded hourly update
+check after successful commands (notices on stderr only; disable with `--no-update-check`,
+`ANDROID_BRIDGE_NO_UPDATE_CHECK=1` or `"disable_update_check": true`). Configuration is
+read only from `~/.config/agent-skills/android-bridge/config.json`; set
+`ANDROID_BRIDGE_HOME` to relocate the runtime directory, e.g. for isolated tests.
+The skill now lives in `skills/android-bridge/`, together with the config template and schema.
 
 ### For development
 
@@ -36,6 +39,8 @@ git clone https://github.com/briqt/android-bridge.git
 cd android-bridge
 pipx install --editable .
 # after changes: pipx reinstall android-bridge
+# tests, isolated from your real config:
+pip install -e '.[dev]' && ANDROID_BRIDGE_HOME="$(mktemp -d)" python -m pytest -q
 ```
 
 ### Prerequisites

@@ -48,7 +48,7 @@ def test_offline_failure_does_not_repeat_action(monkeypatch, mode):
 
 
 def test_profile_mode_and_reconnect_preserve_settings(tmp_path):
-    source = tmp_path / ".config.json"
+    source = device.CONFIG_FILE
     source.write_text(json.dumps({"active": "phone", "profiles": {"phone": {"serial": "one", "root_mode": "never"}}}))
     assert device.root_mode() == "never"
     device._save_config("two", "phone")
@@ -123,7 +123,7 @@ def test_doctor_is_offline_and_exposes_capabilities():
         result = CliRunner().invoke(cli.main, ["doctor", "--json"])
     assert result.exit_code == 0, result.output
     report = json.loads(result.stdout)
-    assert report["version"] == "0.3.0"
+    assert report["version"] == cli.__version__
     assert "stdin-input" in report["capabilities"]
 
 

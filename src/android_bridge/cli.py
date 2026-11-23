@@ -72,7 +72,7 @@ def check_update_cmd(ctx, as_json):
         click.echo(json.dumps(result, ensure_ascii=False))
     elif result.get("update_available"):
         click.echo(f"android-bridge {result['latest_version']} available (current {result['current_version']}): {result['release_url']}")
-        click.echo("Upgrade CLI: pipx install --force git+https://github.com/briqt/android-bridge.git")
+        click.echo(f"Upgrade CLI: {update_check.upgrade_command()}")
         click.echo("Sync companion skill: npx skills add briqt/android-bridge -g -y")
     else:
         detail = f" ({result['error']})" if result.get("error") else ""

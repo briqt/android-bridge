@@ -16,6 +16,7 @@ from android_bridge.update_check import (
     is_update_disabled,
     newer,
     stable_version,
+    upgrade_command,
     validate_manifest,
 )
 
@@ -61,7 +62,7 @@ def test_throttle_cooldown_and_stale_notice_suppression(tmp_path):
     r1 = check_update(tmp_path, current="0.4.0", now_ms=t0, opener_fn=opener, emit=emitted.append)
     assert r1["status"] == "checked" and r1["update_available"]
     assert len(emitted) == 2
-    assert "pipx install --force git+https://github.com/briqt/android-bridge.git" in emitted[0]
+    assert f"Upgrade CLI: {upgrade_command()}" in emitted[0]
 
     r2 = check_update(tmp_path, current="0.4.0", now_ms=t0 + 60_000, opener_fn=opener, emit=emitted.append)
     assert r2["status"] == "cached" and calls == 1 and len(emitted) == 2
@@ -154,3 +155,13 @@ def test_skill_version_config_template_and_notice_stay_in_sync():
     if notice.exists():
         validated = validate_manifest(json.loads(notice.read_text(encoding="utf-8")))
         assert not newer(validated["latest_version"], __version__)
+
+
+def test_upgrade_command_matches_install_channel():
+    uv = upgrade_command("/home/u/.local/share/uv/tools/android-bridge")
+    assert uv == "uv tool install --force --reinstall --refresh git+https://github.com/briqt/android-bridge.git"
+    pipx = upgrade_command(r"C:\Users\ts\pipx\venvs\android-bridge")
+    assert pipx == "pipx uninstall android-bridge; pipx install git+https://github.com/briqt/android-bridge.git"
+    assert "--force" not in pipx
+    other = upgrade_command("/usr")
+    assert uv in other and pipx in other

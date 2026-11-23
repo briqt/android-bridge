@@ -13,13 +13,15 @@ npx skills add briqt/android-bridge -g -y
 ### As a CLI tool (standard)
 
 ```bash
-pipx install git+https://github.com/briqt/android-bridge.git
+uv tool install git+https://github.com/briqt/android-bridge.git
+# or: pipx install git+https://github.com/briqt/android-bridge.git
 ```
 
 ### Update and verify
 
 ```bash
-pipx install --force git+https://github.com/briqt/android-bridge.git
+uv tool install --force --reinstall --refresh git+https://github.com/briqt/android-bridge.git
+# with pipx: pipx uninstall android-bridge; pipx install git+https://github.com/briqt/android-bridge.git
 npx skills add briqt/android-bridge -g -y
 android-bridge --version
 android-bridge doctor --json

@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.1
+
+- Update notices and `check-update` print an upgrade command that matches how the CLI was installed: `uv tool install --force --reinstall --refresh …` for uv, `pipx uninstall android-bridge; pipx install …` for pipx. The previous `pipx install --force …` hint could exit successfully while leaving the old version in place under pipx's uv backend.
+- Install docs lead with `uv tool install`; pipx remains supported.
+
 ## v0.4.0
 
 - Configuration comes only from `~/.config/agent-skills/android-bridge/config.json`: the `.config.json` lookup in the current working directory is removed, and an invalid file now fails with `CONFIG_INVALID` instead of being used or skipped. `ANDROID_BRIDGE_HOME` relocates the runtime directory (for isolated tests). `connect` merges into that file, preserving other settings.

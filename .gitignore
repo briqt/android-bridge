@@ -1,18 +1,12 @@
-# Ignore all dotfiles/dotdirs
+# 默认忽略所有 . 开头的文件和目录，需要跟踪的逐个放行
 .*
-
-# Whitelist
 !.gitignore
 
-# Python
+# 个人 Agent 指令不入库
+/AGENTS.md
+
 __pycache__/
 *.egg-info/
 *.pyc
 dist/
 build/
-
-# Virtual env
-.venv/
-
-# Local maintainer files
-/AGENTS.md

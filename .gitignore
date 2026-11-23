@@ -6,6 +6,4 @@ __pycache__/
 *.pyc
 dist/
 build/
-
-# 个人 Agent 指令不入库
 /AGENTS.md

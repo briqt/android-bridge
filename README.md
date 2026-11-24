@@ -86,3 +86,11 @@ Runtime: Click 8.5.0 and Pillow 13.0.0; build: Hatchling 1.32.4. Pillow 13 requi
 Python 3.11+, so this release raises the Python minimum accordingly. Test/build
 extras use pytest 9.1.1 and build 1.6.1 (`pip install -e '.[dev]'`). Input streams
 use Python's stdin API rather than Click's deprecated get_text_stream helper.
+
+## Community
+
+[学 AI，上 Linux DO](https://linux.do/)
+
+## License
+
+[MIT](LICENSE)
